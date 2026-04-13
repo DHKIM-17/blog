@@ -1,0 +1,96 @@
+import { sql } from '@vercel/postgres'
+
+// Photo CRUD 유틸리티 (비동기)
+export const photoDb = {
+  findMany: async () => {
+    const { rows } = await sql`SELECT * FROM Photo ORDER BY "createdAt" DESC`
+    return rows
+  },
+  findOne: async (id) => {
+    const { rows } = await sql`SELECT * FROM Photo WHERE id = ${id}`
+    return rows[0] || null
+  },
+  create: async ({ title, description, imageUrl, createdAt }) => {
+    const now = createdAt || new Date().toISOString()
+    const { rows } = await sql`
+      INSERT INTO Photo (title, description, "imageUrl", "createdAt") 
+      VALUES (${title}, ${description}, ${imageUrl}, ${now}) 
+      RETURNING *
+    `
+    return rows[0]
+  },
+  update: async (id, { title, description, createdAt }) => {
+    const { rows } = await sql`
+      UPDATE Photo 
+      SET title = COALESCE(${title}, title), 
+          description = COALESCE(${description}, description), 
+          "createdAt" = COALESCE(${createdAt}, "createdAt") 
+      WHERE id = ${id} 
+      RETURNING *
+    `
+    return rows[0]
+  },
+  delete: async (id) => {
+    const { rows } = await sql`DELETE FROM Photo WHERE id = ${id} RETURNING *`
+    return rows[0]
+  },
+}
+
+// Article CRUD 유틸리티 (비동기)
+export const articleDb = {
+  findMany: async () => {
+    const { rows } = await sql`SELECT * FROM Article ORDER BY "createdAt" DESC`
+    return rows.map(a => ({
+      ...a,
+      images: typeof a.images === 'string' ? JSON.parse(a.images) : (a.images || [])
+    }))
+  },
+  findOne: async (id) => {
+    const { rows } = await sql`SELECT * FROM Article WHERE id = ${id}`
+    const article = rows[0]
+    if (!article) return null
+    return {
+      ...article,
+      images: typeof article.images === 'string' ? JSON.parse(article.images) : (article.images || [])
+    }
+  },
+  create: async ({ title, content, thumbnailUrl, images, createdAt }) => {
+    const now = createdAt || new Date().toISOString()
+    const imagesJson = JSON.stringify(images || [])
+    const { rows } = await sql`
+      INSERT INTO Article (title, content, "thumbnailUrl", images, "createdAt", "updatedAt") 
+      VALUES (${title}, ${content}, ${thumbnailUrl}, ${imagesJson}, ${now}, ${now}) 
+      RETURNING *
+    `
+    return articleDb.findOne(rows[0].id)
+  },
+  update: async (id, { title, content, thumbnailUrl, images, createdAt }) => {
+    const now = new Date().toISOString()
+    const imagesJson = images ? JSON.stringify(images) : null
+    
+    const { rows } = await sql`
+      UPDATE Article 
+      SET title = COALESCE(${title}, title), 
+          content = COALESCE(${content}, content), 
+          "thumbnailUrl" = COALESCE(${thumbnailUrl}, "thumbnailUrl"), 
+          images = COALESCE(${imagesJson}, images), 
+          "createdAt" = COALESCE(${createdAt}, "createdAt"), 
+          "updatedAt" = ${now} 
+      WHERE id = ${id} 
+      RETURNING *
+    `
+    return articleDb.findOne(rows[0].id)
+  },
+  delete: async (id) => {
+    const article = await articleDb.findOne(id)
+    await sql`DELETE FROM Article WHERE id = ${id}`
+    return article
+  },
+}
+
+/**
+ * 초기 테이블 생성 (Vercel Postgres 대시보드에서 실행하거나, 첫 실행 시 호출 필요)
+ * SQL:
+ * CREATE TABLE Photo (id SERIAL PRIMARY KEY, title TEXT, description TEXT, "imageUrl" TEXT NOT NULL, "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);
+ * CREATE TABLE Article (id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, "thumbnailUrl" TEXT, images JSONB, "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);
+ */

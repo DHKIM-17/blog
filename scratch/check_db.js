@@ -1,0 +1,10 @@
+const Database = require('better-sqlite3');
+const path = require('path');
+const dbPath = path.join(process.cwd(), 'prisma', 'dev.db');
+const db = new Database(dbPath);
+const articles = db.prepare('SELECT id, title, createdAt FROM Article').all();
+const photos = db.prepare('SELECT id, title, createdAt FROM Photo').all();
+console.log('--- Articles ---');
+console.log(JSON.stringify(articles, null, 2));
+console.log('--- Photos ---');
+console.log(JSON.stringify(photos, null, 2));
