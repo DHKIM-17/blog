@@ -15,9 +15,11 @@ export default function ArticlesClient({ initialArticles }) {
   const [activeCategory, setActiveCategory] = useState('전체')
   const categories = ['전체', '여행', '영화', '잡담']
 
-  const filteredArticles = activeCategory === '전체'
-    ? initialArticles
-    : initialArticles.filter(a => a.category === activeCategory)
+  const filteredArticles = (initialArticles || []).filter(a => {
+    if (activeCategory === '전체') return true
+    const cat = (a.category || '잡담').trim()
+    return cat === activeCategory
+  })
 
   return (
     <div className="articles-container">

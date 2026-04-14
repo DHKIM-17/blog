@@ -47,7 +47,11 @@ export const articleDb = {
       } catch (e) {
         console.error('Image parsing error:', e)
       }
-      return { ...a, images: parsedImages }
+      return { 
+        ...a, 
+        images: parsedImages,
+        category: a.category || '잡담' // 데이터 정규화
+      }
     })
   },
   findOne: async (id) => {
@@ -62,7 +66,11 @@ export const articleDb = {
       console.error('Image parsing error:', e)
     }
     
-    return { ...article, images: parsedImages }
+    return { 
+      ...article, 
+      images: parsedImages,
+      category: article.category || '잡담' // 데이터 정규화
+    }
   },
   create: async ({ title, content, thumbnailUrl, images, createdAt, category }) => {
     const now = createdAt || new Date().toISOString()
