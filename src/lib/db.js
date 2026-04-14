@@ -40,19 +40,29 @@ export const photoDb = {
 export const articleDb = {
   findMany: async () => {
     const { rows } = await sql`SELECT * FROM Article ORDER BY "createdAt" DESC`
-    return rows.map(a => ({
-      ...a,
-      images: typeof a.images === 'string' ? JSON.parse(a.images) : (a.images || [])
-    }))
+    return rows.map(a => {
+      let parsedImages = []
+      try {
+        parsedImages = typeof a.images === 'string' ? JSON.parse(a.images) : (a.images || [])
+      } catch (e) {
+        console.error('Image parsing error:', e)
+      }
+      return { ...a, images: parsedImages }
+    })
   },
   findOne: async (id) => {
     const { rows } = await sql`SELECT * FROM Article WHERE id = ${id}`
     const article = rows[0]
     if (!article) return null
-    return {
-      ...article,
-      images: typeof article.images === 'string' ? JSON.parse(article.images) : (article.images || [])
+    
+    let parsedImages = []
+    try {
+      parsedImages = typeof article.images === 'string' ? JSON.parse(article.images) : (article.images || [])
+    } catch (e) {
+      console.error('Image parsing error:', e)
     }
+    
+    return { ...article, images: parsedImages }
   },
   create: async ({ title, content, thumbnailUrl, images, createdAt, category }) => {
     const now = createdAt || new Date().toISOString()
@@ -63,7 +73,17 @@ export const articleDb = {
       VALUES (${title}, ${content}, ${thumbnailUrl}, ${imagesJson}, ${cat}, ${now}, ${now}) 
       RETURNING *
     `
-    return articleDb.findOne(rows[0].id)
+    const newArticle = rows[0]
+    
+    // 즉시 파싱하여 반환 (추가 조회 없이)
+    let parsedImages = []
+    try {
+      parsedImages = typeof newArticle.images === 'string' ? JSON.parse(newArticle.images) : (newArticle.images || [])
+    } catch (e) {
+      parsedImages = []
+    }
+    
+    return { ...newArticle, images: parsedImages }
   },
   update: async (id, { title, content, thumbnailUrl, images, createdAt, category }) => {
     const now = new Date().toISOString()

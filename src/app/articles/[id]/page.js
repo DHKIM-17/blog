@@ -42,9 +42,11 @@ export default async function ArticleDetailPage({ params }) {
             remarkPlugins={[remarkGfm]}
             components={{
               img: ({node, alt, src, ...props}) => {
-                if (alt === 'SLIDER' || alt === 'COLLAGE') {
-                  const urls = src.split(',').map(u => u.trim())
-                  return <ArticleImageGroup type={alt} urls={urls} />
+                if ((alt === 'SLIDER' || alt === 'COLLAGE') && src) {
+                  const urls = src.split(',').filter(u => u.trim()).map(u => u.trim())
+                  if (urls.length > 0) {
+                    return <ArticleImageGroup type={alt} urls={urls} />
+                  }
                 }
                 return <img {...props} alt={alt} src={src} style={{ maxWidth: '100%', height: 'auto', display: 'block', margin: '3rem auto', borderRadius: 'var(--radius)' }} />
               }
