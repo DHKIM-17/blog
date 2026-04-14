@@ -223,8 +223,13 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
       })
 
       const res = await fetch('/api/articles', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error('저장 실패')
-      const { article } = await res.json()
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || '저장 실패')
+      }
+
+      const { article } = data
       setArticles((prev) => [article, ...prev])
       
       setArticleTitle('')

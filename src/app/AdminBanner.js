@@ -193,7 +193,11 @@ export default function AdminBanner({ isAdmin }) {
       articleUploadedImages.forEach(url => fd.append('images', url))
 
       const res = await fetch('/api/articles', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error('저장 실패')
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || '저장 실패')
+      }
 
       alert('이야기가 발행되었습니다.')
       setIsOpen(false)
