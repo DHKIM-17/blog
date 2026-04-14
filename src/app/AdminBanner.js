@@ -113,8 +113,12 @@ export default function AdminBanner({ isAdmin }) {
         const fd = new FormData()
         fd.append('image', file)
         const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-        if (!res.ok) throw new Error('이미지 업로드 중 오류가 발생했습니다.')
         const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.error || '이미지 업로드 중 오류가 발생했습니다.')
+        }
+
         uploadedUrls.push(data.url)
         
         // 업로드된 이미지 리스트에 추가 (썸네일 선택용)

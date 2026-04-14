@@ -17,10 +17,11 @@ export async function POST(request) {
       return Response.json({ error: '파일이 없습니다.' }, { status:400 })
     }
 
-    // 파일명 생성 및 보정 (이름이 없거나 중복 방지)
+    // 파일명 생성 및 보정 (난수를 섞어 중복 방지)
     const timestamp = Date.now()
+    const randomStr = Math.random().toString(36).substring(2, 8)
     const originalName = file.name || 'image.png'
-    const fileName = `${timestamp}-${originalName}`
+    const fileName = `${timestamp}-${randomStr}-${originalName}`
 
     // Vercel Blob에 업로드
     const blob = await put(fileName, file, { access: 'public' })
