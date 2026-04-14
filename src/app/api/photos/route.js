@@ -14,20 +14,29 @@ export async function POST(request) {
   const title = formData.get('title') || null
   const description = formData.get('description') || null
 
-  if (!file || typeof file === 'string') {
-    return Response.json({ error: '이미지 파일이 필요합니다.' }, { status: 400 })
+    if (!file || typeof file === 'string') {
+      return Response.json({ error: '이미지 파일이 필요합니다.' }, { status: 400 })
+    }
+
+    // 파일명 생성 및 보정 (이름이 없거나 중복 방지)
+    const timestamp = Date.now()
+    const originalName = file.name || 'photo.png'
+    const fileName = `${timestamp}-${originalName}`
+
+    // Vercel Blob에 업로드
+    const blob = await put(fileName, file, { access: 'public' })
+    const imageUrl = blob.url
+
+    const createdAtStr = formData.get('createdAt')
+    const createdAt = createdAtStr ? new Date(createdAtStr).toISOString() : null
+
+    const photo = await photoDb.create({ title, description, imageUrl, createdAt })
+
+    return Response.json({ photo })
+  } catch (err) {
+    console.error('Photo Upload Error:', err)
+    return Response.json({ error: `갤러리 업로드 서버 오류: ${err.message}` }, { status: 500 })
   }
-
-  // Vercel Blob에 업로드
-  const blob = await put(file.name, file, { access: 'public' })
-  const imageUrl = blob.url
-
-  const createdAtStr = formData.get('createdAt')
-  const createdAt = createdAtStr ? new Date(createdAtStr).toISOString() : null
-
-  const photo = await photoDb.create({ title, description, imageUrl, createdAt })
-
-  return Response.json({ photo })
 }
 
 export async function GET() {

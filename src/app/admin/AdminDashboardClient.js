@@ -114,7 +114,10 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
 
     try {
       const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error('이미지 업로드 실패')
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || '이미지 업로드 실패')
+      }
       const { url } = await res.json()
 
       // 현재 커서 위치에 마크다운 태그 삽입
