@@ -14,6 +14,7 @@ export async function POST(request) {
   const title = formData.get('title') || null
   const description = formData.get('description') || null
 
+  try {
     if (!file || typeof file === 'string') {
       return Response.json({ error: '이미지 파일이 필요합니다.' }, { status: 400 })
     }
