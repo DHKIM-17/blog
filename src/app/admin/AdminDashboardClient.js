@@ -80,8 +80,18 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
         if (photoCreatedAt) fd.append('createdAt', new Date(photoCreatedAt).toISOString())
         
         const res = await fetch('/api/photos', { method: 'POST', body: fd })
-        if (!res.ok) throw new Error('업로드 실패')
-        const { photo } = await res.json()
+        let data
+        try {
+          data = await res.json()
+        } catch (e) {
+          throw new Error(`서버 응답 오류 (상태코드: ${res.status})`)
+        }
+
+        if (!res.ok) {
+          throw new Error(data.error || `업로드 실패 (상태코드: ${res.status})`)
+        }
+
+        const { photo } = data
         setPhotos((prev) => [photo, ...prev])
       }
       setSelectedPhotoFiles([])
@@ -114,11 +124,18 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
 
     try {
       const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.error || '이미지 업로드 실패')
+      let data
+      try {
+        data = await res.json()
+      } catch (e) {
+        throw new Error(`서버 응답 오류 (상태코드: ${res.status})`)
       }
-      const { url } = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || `업로드 실패 (상태코드: ${res.status})`)
+      }
+      
+      const url = data.url
 
       // 현재 커서 위치에 마크다운 태그 삽입
       const textarea = articleContentRef.current

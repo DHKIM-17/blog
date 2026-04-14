@@ -84,11 +84,18 @@ export default function AdminBanner({ isAdmin }) {
     fd.append('image', file)
     try {
       const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.error || '이미지 업로드 실패')
+      let data
+      try {
+        data = await res.json()
+      } catch (e) {
+        throw new Error(`서버 응답 오류 (상태코드: ${res.status})`)
       }
-      const { url } = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || `업로드 실패 (상태코드: ${res.status})`)
+      }
+      
+      const { url } = data
       const textarea = articleContentRef.current
       if (textarea) {
         const start = textarea.selectionStart
