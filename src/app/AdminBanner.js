@@ -113,7 +113,15 @@ export default function AdminBanner({ isAdmin }) {
         const fd = new FormData()
         fd.append('image', file)
         const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-        const data = await res.json()
+        
+        let data
+        const contentType = res.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          data = await res.json()
+        } else {
+          const text = await res.text()
+          throw new Error(`이미지 업로드 실패 (${res.status}): ${text.substring(0, 100)}`)
+        }
 
         if (!res.ok) {
           throw new Error(data.error || '이미지 업로드 중 오류가 발생했습니다.')
@@ -165,7 +173,16 @@ export default function AdminBanner({ isAdmin }) {
           setArticleUploading(true)
           try {
             const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-            const data = await res.json()
+            
+            let data
+            const contentType = res.headers.get('content-type')
+            if (contentType && contentType.includes('application/json')) {
+              data = await res.json()
+            } else {
+              const text = await res.text()
+              throw new Error(`붙여넣기 업로드 실패 (${res.status}): ${text.substring(0, 100)}`)
+            }
+
             insertAtCursor(`\n\n![이미지 설명](${data.url})\n\n`)
             setArticleUploadedImages(prev => [...prev, data.url])
             if (!articleThumbnailUrl) setArticleThumbnailUrl(data.url)
@@ -193,7 +210,15 @@ export default function AdminBanner({ isAdmin }) {
       articleUploadedImages.forEach(url => fd.append('images', url))
 
       const res = await fetch('/api/articles', { method: 'POST', body: fd })
-      const data = await res.json()
+      
+      let data
+      const contentType = res.headers.get('content-type')
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json()
+      } else {
+        const text = await res.text()
+        throw new Error(`저장 실패 (${res.status}): ${text.substring(0, 100)}`)
+      }
 
       if (!res.ok) {
         throw new Error(data.error || '저장 실패')
@@ -291,6 +316,9 @@ export default function AdminBanner({ isAdmin }) {
                 <button type="button" className="btn btn-ghost" style={{ fontSize: '0.7rem' }} onClick={() => imageUploadRef.current?.click()}>📷 사진 추가</button>
                 <input ref={imageUploadRef} type="file" multiple hidden onChange={handleInsertImage} />
                 <input className="form-input" type="date" style={{ width: 'auto' }} value={articleCreatedAt} onChange={e => setArticleCreatedAt(e.target.value)} />
+                <p className="upload-hint" style={{ fontSize: '0.7rem', color: 'var(--ink-light)', marginTop: '0.4rem', width: '100%', flex: '0 0 100%' }}>
+                  ※ 개별 사진은 4MB 이하를 권장합니다.
+                </p>
               </div>
 
               {pendingGroupUrls.length > 0 && (

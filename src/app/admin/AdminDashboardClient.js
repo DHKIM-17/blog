@@ -152,7 +152,15 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
         const fd = new FormData()
         fd.append('image', file)
         const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-        const data = await res.json()
+        
+        let data
+        const contentType = res.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          data = await res.json()
+        } else {
+          const text = await res.text()
+          throw new Error(`이미지 업로드 실패 (${res.status}): ${text.substring(0, 100)}`)
+        }
         
         if (!res.ok) {
           throw new Error(data.error || '이미지 업로드 중 오류가 발생했습니다.')
@@ -223,7 +231,15 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
       })
 
       const res = await fetch('/api/articles', { method: 'POST', body: fd })
-      const data = await res.json()
+      
+      let data
+      const contentType = res.headers.get('content-type')
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json()
+      } else {
+        const text = await res.text()
+        throw new Error(`저장 실패 (${res.status}): ${text.substring(0, 100)}`)
+      }
 
       if (!res.ok) {
         throw new Error(data.error || '저장 실패')
@@ -417,6 +433,7 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                     📷 사진 추가 (여러 장 가능)
                   </button>
                   <input ref={imageUploadRef} type="file" accept="image/*" multiple hidden onChange={handleInsertImage} />
+                  <p className="upload-hint">※ 개별 사진은 4MB 이하를 권장합니다.</p>
                 </div>
 
                 {pendingGroupUrls.length > 0 && (
