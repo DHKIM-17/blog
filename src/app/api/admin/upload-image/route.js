@@ -1,6 +1,7 @@
 import { put } from '@vercel/blob'
 import { getSession } from '@/lib/session'
 
+// Force redeploy to update Vercel Blob token links
 export async function POST(request) {
   // 인증 확인
   const session = await getSession()
