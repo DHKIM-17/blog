@@ -38,6 +38,7 @@ export default function AdminBanner({ isAdmin }) {
   const [articleCreatedAt, setArticleCreatedAt] = useState(toISODate(new Date()))
   const [articleUploadedImages, setArticleUploadedImages] = useState([])
   const [articleThumbnailUrl, setArticleThumbnailUrl] = useState('')
+  const [articleCategory, setArticleCategory] = useState('잡담')
   const [articleUploading, setArticleUploading] = useState(false)
 
   // 페이지 이동 시 드로어 닫기
@@ -140,6 +141,7 @@ export default function AdminBanner({ isAdmin }) {
       const fd = new FormData()
       fd.append('title', articleTitle)
       fd.append('content', articleContent)
+      fd.append('category', articleCategory)
       fd.append('thumbnailUrl', articleThumbnailUrl)
       if (articleCreatedAt) fd.append('createdAt', new Date(articleCreatedAt).toISOString())
       articleUploadedImages.forEach(url => fd.append('images', url))
@@ -151,6 +153,7 @@ export default function AdminBanner({ isAdmin }) {
       setIsOpen(false)
       setArticleTitle('')
       setArticleContent('')
+      setArticleCategory('잡담')
       setArticleUploadedImages([])
       setArticleThumbnailUrl('')
       router.refresh()
@@ -225,6 +228,16 @@ export default function AdminBanner({ isAdmin }) {
               <input className="form-input" style={{ fontSize: '1.2rem', marginBottom: '1rem' }} placeholder="제목을 입력하세요" value={articleTitle} onChange={e => setArticleTitle(e.target.value)} />
 
               <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <select 
+                  className="form-input" 
+                  style={{ width: 'auto', cursor: 'pointer' }}
+                  value={articleCategory}
+                  onChange={e => setArticleCategory(e.target.value)}
+                >
+                  <option value="여행">여행</option>
+                  <option value="영화">영화</option>
+                  <option value="잡담">잡담</option>
+                </select>
                 <button type="button" className="btn btn-ghost" style={{ fontSize: '0.7rem' }} onClick={() => imageUploadRef.current?.click()}>📷 사진 삽입</button>
                 <input ref={imageUploadRef} type="file" hidden onChange={handleInsertImage} />
                 <input className="form-input" type="date" style={{ width: 'auto' }} value={articleCreatedAt} onChange={e => setArticleCreatedAt(e.target.value)} />

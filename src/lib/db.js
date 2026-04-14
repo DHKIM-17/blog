@@ -54,17 +54,18 @@ export const articleDb = {
       images: typeof article.images === 'string' ? JSON.parse(article.images) : (article.images || [])
     }
   },
-  create: async ({ title, content, thumbnailUrl, images, createdAt }) => {
+  create: async ({ title, content, thumbnailUrl, images, createdAt, category }) => {
     const now = createdAt || new Date().toISOString()
     const imagesJson = JSON.stringify(images || [])
+    const cat = category || '잡담'
     const { rows } = await sql`
-      INSERT INTO Article (title, content, "thumbnailUrl", images, "createdAt", "updatedAt") 
-      VALUES (${title}, ${content}, ${thumbnailUrl}, ${imagesJson}, ${now}, ${now}) 
+      INSERT INTO Article (title, content, "thumbnailUrl", images, category, "createdAt", "updatedAt") 
+      VALUES (${title}, ${content}, ${thumbnailUrl}, ${imagesJson}, ${cat}, ${now}, ${now}) 
       RETURNING *
     `
     return articleDb.findOne(rows[0].id)
   },
-  update: async (id, { title, content, thumbnailUrl, images, createdAt }) => {
+  update: async (id, { title, content, thumbnailUrl, images, createdAt, category }) => {
     const now = new Date().toISOString()
     const imagesJson = images ? JSON.stringify(images) : null
     
@@ -74,6 +75,7 @@ export const articleDb = {
           content = COALESCE(${content}, content), 
           "thumbnailUrl" = COALESCE(${thumbnailUrl}, "thumbnailUrl"), 
           images = COALESCE(${imagesJson}, images), 
+          category = COALESCE(${category}, category),
           "createdAt" = COALESCE(${createdAt}, "createdAt"), 
           "updatedAt" = ${now} 
       WHERE id = ${id} 

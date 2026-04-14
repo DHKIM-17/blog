@@ -29,6 +29,8 @@ export default async function ArticleDetailPage({ params }) {
         <Link href="/articles" className="hero-label">← Back to Articles</Link>
         <h1 className="article-detail-title">{article.title}</h1>
         <div className="article-detail-meta">
+          <span className="detail-category">{article.category || '잡담'}</span>
+          <span className="divider">|</span>
           <span>{formatDate(article.createdAt)}</span>
         </div>
       </header>

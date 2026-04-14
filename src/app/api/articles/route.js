@@ -14,6 +14,7 @@ export async function POST(request) {
   const content = formData.get('content')
   const images = formData.getAll('images')
   const createdAtStr = formData.get('createdAt')
+  const category = formData.get('category') || '잡담'
 
   if (!title || !content) {
     return Response.json({ error: '제목과 본문은 필수입니다.' }, { status: 400 })
@@ -57,7 +58,8 @@ export async function POST(request) {
       content, 
       thumbnailUrl, 
       images: imageUrls, 
-      createdAt 
+      createdAt,
+      category
     })
 
     return Response.json({ article })

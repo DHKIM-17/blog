@@ -49,6 +49,7 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
   const [articleCreatedAt, setArticleCreatedAt] = useState(toISODate(new Date()))
   const [articleUploadedImages, setArticleUploadedImages] = useState([]) // 본문에 사용된 사진들 URL 리스트
   const [articleThumbnailUrl, setArticleThumbnailUrl] = useState('')
+  const [articleCategory, setArticleCategory] = useState('잡담')
   const [articleUploading, setArticleUploading] = useState(false)
 
   // Edit State
@@ -57,6 +58,7 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
   const [editContent, setEditContent] = useState('')
   const [editCreatedAt, setEditCreatedAt] = useState('')
   const [editThumbnailUrl, setEditThumbnailUrl] = useState('')
+  const [editCategory, setEditCategory] = useState('잡담')
   const [editUploadedImages, setEditUploadedImages] = useState([])
 
   // ----- Photo Handlers (Gallery) -----
@@ -194,7 +196,8 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
       const fd = new FormData()
       fd.append('title', articleTitle)
       fd.append('content', articleContent)
-      fd.append('thumbnailUrl', articleThumbnailUrl) // 선택된 썸네일 URL
+      fd.append('category', articleCategory)
+      fd.append('thumbnailUrl', articleThumbnailUrl)
       if (articleCreatedAt) fd.append('createdAt', new Date(articleCreatedAt).toISOString())
       
       // 글에 사용된 모든 이미지 URL 리스트 전송
@@ -209,6 +212,7 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
       
       setArticleTitle('')
       setArticleContent('')
+      setArticleCategory('잡담')
       setArticleCreatedAt(toISODate(new Date()))
       setArticleUploadedImages([])
       setArticleThumbnailUrl('')
@@ -230,7 +234,8 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
     setEditTitle(article.title)
     setEditContent(article.content)
     setEditCreatedAt(toISODate(article.createdAt))
-    setEditThumbnailUrl(article.thumbnailUrl)
+    setEditThumbnailUrl(article.thumbnailUrl || '')
+    setEditCategory(article.category || '잡담')
     setEditUploadedImages(article.images || [])
   }
 
@@ -239,6 +244,7 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
       const fd = new FormData()
       fd.append('title', editTitle)
       fd.append('content', editContent)
+      fd.append('category', editCategory)
       fd.append('createdAt', new Date(editCreatedAt).toISOString())
       fd.append('thumbnailUrl', editThumbnailUrl)
       
@@ -363,6 +369,20 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                 <input type="date" className="form-input" value={articleCreatedAt} onChange={(e) => setArticleCreatedAt(e.target.value)} />
               </div>
 
+              <div className="form-group">
+                <label className="form-label">카테고리</label>
+                <select 
+                  className="form-input" 
+                  value={articleCategory} 
+                  onChange={(e) => setArticleCategory(e.target.value)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <option value="여행">여행</option>
+                  <option value="영화">영화</option>
+                  <option value="잡담">잡담</option>
+                </select>
+              </div>
+
               <div className="form-group" style={{ marginBottom: '0.5rem' }}>
                 <label className="form-label">본문 작성</label>
                 <div style={{ marginBottom: '1rem' }}>
@@ -432,7 +452,20 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                   {editingId === a.id ? (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <input type="text" className="form-input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="제목" />
-                      <input type="date" className="form-input" value={editCreatedAt} onChange={(e) => setEditCreatedAt(e.target.value)} />
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <select 
+                          className="form-input" 
+                          value={editCategory} 
+                          onChange={(e) => setEditCategory(e.target.value)}
+                          style={{ flex: 1, cursor: 'pointer' }}
+                        >
+                          <option value="여행">여행</option>
+                          <option value="영화">영화</option>
+                          <option value="잡담">잡담</option>
+                        </select>
+                        <input type="date" className="form-input" style={{ flex: 1 }} value={editCreatedAt} onChange={(e) => setEditCreatedAt(e.target.value)} />
+                      </div>
+                      <textarea className="form-textarea" value={editContent} onChange={(e) => setEditContent(e.target.value)} placeholder="본문" style={{ minHeight: '150px' }} />
                       
                       <p style={{ fontSize: '0.75rem', marginBottom: '-0.3rem' }}>대표 이미지 변경:</p>
                       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>

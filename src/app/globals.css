@@ -206,6 +206,69 @@ a {
   letter-spacing: 0.05em;
 }
 
+/* Category Filter & Badges */
+.articles-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.category-filter {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 3.5rem;
+  justify-content: center;
+}
+
+.filter-btn {
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 0.3s;
+  padding: 0.5rem 1rem;
+  position: relative;
+}
+
+.filter-btn:hover {
+  color: var(--ink-light);
+}
+
+.filter-btn.active {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.filter-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.article-category-badge {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  background: rgba(245, 242, 237, 0.9);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+  z-index: 10;
+  border: 1px solid var(--border);
+  backdrop-filter: blur(4px);
+}
+
 /* ===== Article Detail Page ===== */
 .article-detail-container {
   max-width: 720px;
@@ -226,9 +289,26 @@ a {
 }
 
 .article-detail-meta {
-  font-size: 0.9rem;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 0.85rem;
   color: var(--ink-lighter);
   letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.detail-category {
+  color: var(--ink-light);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.divider {
+  color: var(--ink-faint);
+  font-weight: 300;
 }
 
 .article-detail-thumb {

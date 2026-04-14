@@ -66,6 +66,7 @@ export async function PATCH(request, { params }) {
   const newImages = formData.getAll('images')
   const existingThumbnailUrl = formData.get('existingThumbnailUrl')
   const createdAt = formData.get('createdAt')
+  const category = formData.get('category')
 
   const existingArticle = await articleDb.findOne(articleId)
   if (!existingArticle) {
@@ -92,7 +93,8 @@ export async function PATCH(request, { params }) {
     content: content || existingArticle.content,
     thumbnailUrl,
     images: imageUrls,
-    createdAt: createdAt || existingArticle.createdAt
+    createdAt: createdAt || existingArticle.createdAt,
+    category: category || existingArticle.category
   })
 
   return Response.json({ article: updatedArticle })
