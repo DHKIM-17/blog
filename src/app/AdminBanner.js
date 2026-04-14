@@ -37,9 +37,11 @@ export default function AdminBanner({ isAdmin }) {
   const [articleContent, setArticleContent] = useState('')
   const [articleCreatedAt, setArticleCreatedAt] = useState(toISODate(new Date()))
   const [articleUploadedImages, setArticleUploadedImages] = useState([])
-  const [articleThumbnailUrl, setArticleThumbnailUrl] = useState('')
   const [articleCategory, setArticleCategory] = useState('잡담')
   const [articleUploading, setArticleUploading] = useState(false)
+
+  // Pending Group (본문 다중 삽입용 임시 상태)
+  const [pendingGroupUrls, setPendingGroupUrls] = useState([])
 
   // 페이지 이동 시 드로어 닫기
   useEffect(() => {
@@ -79,45 +81,71 @@ export default function AdminBanner({ isAdmin }) {
   }
 
   // 본문 이미지 업로드 및 태그 삽입 공통 로직
-  async function uploadImageFile(file) {
-    if (!file) return
-    const fd = new FormData()
-    fd.append('image', file)
-    try {
-      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-      let data
-      try {
-        data = await res.json()
-      } catch (e) {
-        throw new Error(`서버 응답 오류 (상태코드: ${res.status})`)
-      }
+  function insertAtCursor(tag) {
+    const textarea = articleContentRef.current
+    if (!textarea) return
 
-      if (!res.ok) {
-        throw new Error(data.error || `업로드 실패 (상태코드: ${res.status})`)
-      }
-      
-      const { url } = data
-      const textarea = articleContentRef.current
-      if (textarea) {
-        const start = textarea.selectionStart
-        const end = textarea.selectionEnd
-        const text = articleContent
-        const tag = `\n\n![사진 설명](${url})\n\n`
-        setArticleContent(text.substring(0, start) + tag + text.substring(end))
-        setArticleUploadedImages(prev => [...prev, url])
-        if (!articleThumbnailUrl) setArticleThumbnailUrl(url)
-      }
-    } catch (err) {
-      alert(err.message)
-    }
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const text = articleContent
+    const before = text.substring(0, start)
+    const after = text.substring(end)
+    
+    const newText = before + tag + after
+    setArticleContent(newText)
+    
+    // 포커스 유지 및 커서 이동
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start + tag.length, start + tag.length)
+    }, 10)
   }
 
   async function handleInsertImage(e) {
-    const file = e.target.files?.[0]
-    await uploadImageFile(file)
-    if (imageUploadRef.current) imageUploadRef.current.value = ''
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    
+    setArticleUploading(true)
+    const uploadedUrls = []
+
+    try {
+      for (const file of files) {
+        const fd = new FormData()
+        fd.append('image', file)
+        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
+        if (!res.ok) throw new Error('이미지 업로드 중 오류가 발생했습니다.')
+        const data = await res.json()
+        uploadedUrls.push(data.url)
+        
+        // 업로드된 이미지 리스트에 추가 (썸네일 선택용)
+        setArticleUploadedImages(prev => [...prev, data.url])
+        // 첫 번째 이미지라면 썸네일로 자동 선택
+        if (!articleThumbnailUrl && uploadedUrls.length === 1) {
+            setArticleThumbnailUrl(data.url)
+        }
+      }
+
+      if (files.length === 1) {
+        insertAtCursor(`\n\n![이미지 설명](${uploadedUrls[0]})\n\n`)
+      } else {
+        setPendingGroupUrls(uploadedUrls)
+      }
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setArticleUploading(false)
+      if (imageUploadRef.current) imageUploadRef.current.value = ''
+    }
   }
 
+  function handleInsertGroup(type) {
+    if (pendingGroupUrls.length === 0) return
+    const tag = `\n\n![${type}](${pendingGroupUrls.join(',')})\n\n`
+    insertAtCursor(tag)
+    setPendingGroupUrls([])
+  }
+
+  // 본문 내 사진 붙여넣기 (Ctrl+V)
   async function handlePaste(e) {
     const items = e.clipboardData?.items
     if (!items) return
@@ -127,7 +155,21 @@ export default function AdminBanner({ isAdmin }) {
         const file = item.getAsFile()
         if (file) {
           e.preventDefault()
-          await uploadImageFile(file)
+          
+          const fd = new FormData()
+          fd.append('image', file)
+          setArticleUploading(true)
+          try {
+            const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
+            const data = await res.json()
+            insertAtCursor(`\n\n![이미지 설명](${data.url})\n\n`)
+            setArticleUploadedImages(prev => [...prev, data.url])
+            if (!articleThumbnailUrl) setArticleThumbnailUrl(data.url)
+          } catch (err) {
+            alert('붙여넣기 업로드 실패')
+          } finally {
+            setArticleUploading(false)
+          }
         }
       }
     }
@@ -238,10 +280,21 @@ export default function AdminBanner({ isAdmin }) {
                   <option value="영화">영화</option>
                   <option value="잡담">잡담</option>
                 </select>
-                <button type="button" className="btn btn-ghost" style={{ fontSize: '0.7rem' }} onClick={() => imageUploadRef.current?.click()}>📷 사진 삽입</button>
-                <input ref={imageUploadRef} type="file" hidden onChange={handleInsertImage} />
+                <button type="button" className="btn btn-ghost" style={{ fontSize: '0.7rem' }} onClick={() => imageUploadRef.current?.click()}>📷 사진 추가</button>
+                <input ref={imageUploadRef} type="file" multiple hidden onChange={handleInsertImage} />
                 <input className="form-input" type="date" style={{ width: 'auto' }} value={articleCreatedAt} onChange={e => setArticleCreatedAt(e.target.value)} />
               </div>
+
+              {pendingGroupUrls.length > 0 && (
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--paper-dark)', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                  <p style={{ fontSize: '0.75rem', marginBottom: '0.8rem' }}>📦 사진 {pendingGroupUrls.length}장 묶음 삽입:</p>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button type="button" className="btn btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.7rem' }} onClick={() => handleInsertGroup('SLIDER')}>🎞️ 슬라이드</button>
+                    <button type="button" className="btn btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.7rem' }} onClick={() => handleInsertGroup('COLLAGE')}>▦ 격자</button>
+                    <button type="button" className="btn btn-ghost" style={{ padding: '0.4rem 0.8rem', fontSize: '0.7rem' }} onClick={() => setPendingGroupUrls([])}>취소</button>
+                  </div>
+                </div>
+              )}
 
               <textarea
                 ref={articleContentRef}

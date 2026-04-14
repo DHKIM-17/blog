@@ -51,6 +51,9 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
   const [articleThumbnailUrl, setArticleThumbnailUrl] = useState('')
   const [articleCategory, setArticleCategory] = useState('잡담')
   const [articleUploading, setArticleUploading] = useState(false)
+  
+  // Pending Group (본문 다중 삽입용 임시 상태)
+  const [pendingGroupUrls, setPendingGroupUrls] = useState([])
 
   // Edit State
   const [editingId, setEditingId] = useState(null)
@@ -117,58 +120,68 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
 
   // ----- Article Handlers (Naver Blog Style) -----
   
-  // 본문 내 사진 전송 및 삽입 공통 로직
-  async function uploadImageFile(file) {
-    if (!file) return
+  function insertAtCursor(tag) {
+    const textarea = articleContentRef.current
+    if (!textarea) return
 
-    const fd = new FormData()
-    fd.append('image', file)
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const text = articleContent
+    const before = text.substring(0, start)
+    const after = text.substring(end)
+    
+    const newText = before + tag + after
+    setArticleContent(newText)
+    
+    // 포커스 유지 및 커서 이동
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start + tag.length, start + tag.length)
+    }, 10)
+  }
+
+  async function handleInsertImage(e) {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    
+    setArticleUploading(true)
+    const uploadedUrls = []
 
     try {
-      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-      let data
-      try {
-        data = await res.json()
-      } catch (e) {
-        throw new Error(`서버 응답 오류 (상태코드: ${res.status})`)
-      }
-
-      if (!res.ok) {
-        throw new Error(data.error || `업로드 실패 (상태코드: ${res.status})`)
-      }
-      
-      const url = data.url
-
-      // 현재 커서 위치에 마크다운 태그 삽입
-      const textarea = articleContentRef.current
-      if (textarea) {
-        const start = textarea.selectionStart
-        const end = textarea.selectionEnd
-        const text = articleContent
-        const before = text.substring(0, start)
-        const after = text.substring(end)
-        const tag = `\n\n![사진 설명](${url})\n\n`
-        
-        const newText = before + tag + after
-        setArticleContent(newText)
+      for (const file of files) {
+        const fd = new FormData()
+        fd.append('image', file)
+        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
+        if (!res.ok) throw new Error('이미지 업로드 중 오류가 발생했습니다.')
+        const data = await res.json()
+        uploadedUrls.push(data.url)
         
         // 업로드된 이미지 리스트에 추가 (썸네일 선택용)
-        setArticleUploadedImages(prev => [...prev, url])
+        setArticleUploadedImages(prev => [...prev, data.url])
         // 첫 번째 이미지라면 썸네일로 자동 선택
-        if (articleUploadedImages.length === 0 && !articleThumbnailUrl) {
-            setArticleThumbnailUrl(url)
+        if (!articleThumbnailUrl && uploadedUrls.length === 1) {
+            setArticleThumbnailUrl(data.url)
         }
+      }
+
+      if (files.length === 1) {
+        insertAtCursor(`\n\n![이미지 설명](${uploadedUrls[0]})\n\n`)
+      } else {
+        setPendingGroupUrls(uploadedUrls)
       }
     } catch (err) {
       alert(err.message)
+    } finally {
+      setArticleUploading(false)
+      if (imageUploadRef.current) imageUploadRef.current.value = ''
     }
   }
 
-  // 버튼을 통한 파일 선택 시
-  async function handleInsertImage(e) {
-    const file = e.target.files?.[0]
-    await uploadImageFile(file)
-    if (imageUploadRef.current) imageUploadRef.current.value = ''
+  function handleInsertGroup(type) {
+    if (pendingGroupUrls.length === 0) return
+    const tag = `\n\n![${type}](${pendingGroupUrls.join(',')})\n\n`
+    insertAtCursor(tag)
+    setPendingGroupUrls([])
   }
 
   // 붙여넣기(Ctrl+V) 처리
@@ -392,10 +405,22 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                     style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                     onClick={() => imageUploadRef.current?.click()}
                   >
-                    📷 본문에 사진 삽입하기
+                    📷 사진 추가 (여러 장 가능)
                   </button>
-                  <input ref={imageUploadRef} type="file" accept="image/*" hidden onChange={handleInsertImage} />
+                  <input ref={imageUploadRef} type="file" accept="image/*" multiple hidden onChange={handleInsertImage} />
                 </div>
+
+                {pendingGroupUrls.length > 0 && (
+                  <div style={{ marginBottom: '1.5rem', padding: '1.5rem', background: 'var(--paper-dark)', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '1rem', fontWeight: 600 }}>🏷️ 방금 올린 사진({pendingGroupUrls.length}장)을 어떻게 넣을까요?</p>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                      <button type="button" className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }} onClick={() => handleInsertGroup('SLIDER')}>🎞️ 슬라이드로 넣기</button>
+                      <button type="button" className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }} onClick={() => handleInsertGroup('COLLAGE')}>▦ 격자(콜라주)로 넣기</button>
+                      <button type="button" className="btn btn-ghost" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }} onClick={() => setPendingGroupUrls([])}>취소</button>
+                    </div>
+                  </div>
+                )}
+
                 <textarea 
                   ref={articleContentRef}
                   className="form-textarea" 

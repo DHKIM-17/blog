@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Link from 'next/link'
+import ArticleImageGroup from '../ArticleImageGroup'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +41,13 @@ export default async function ArticleDetailPage({ params }) {
         <ReactMarkdown 
             remarkPlugins={[remarkGfm]}
             components={{
-              img: ({node, ...props}) => <img {...props} style={{ maxWidth: '100%', height: 'auto', display: 'block', margin: '3rem auto', borderRadius: 'var(--radius)' }} />
+              img: ({node, alt, src, ...props}) => {
+                if (alt === 'SLIDER' || alt === 'COLLAGE') {
+                  const urls = src.split(',').map(u => u.trim())
+                  return <ArticleImageGroup type={alt} urls={urls} />
+                }
+                return <img {...props} alt={alt} src={src} style={{ maxWidth: '100%', height: 'auto', display: 'block', margin: '3rem auto', borderRadius: 'var(--radius)' }} />
+              }
             }}
         >
           {article.content}
