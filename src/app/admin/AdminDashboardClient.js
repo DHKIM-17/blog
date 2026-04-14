@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { upload } from '@vercel/blob/client'
 
 function formatDate(dateStr) {
   const d = new Date(dateStr)
@@ -78,22 +79,35 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
     setPhotoUploading(true)
     try {
       for (const file of selectedPhotoFiles) {
-        const fd = new FormData()
-        fd.append('image', file)
-        fd.append('title', photoTitle)
-        fd.append('description', photoDesc)
-        if (photoCreatedAt) fd.append('createdAt', new Date(photoCreatedAt).toISOString())
+        // 1. Vercel Blob에 직접 업로드 (용량 제한 우회)
+        const newBlob = await upload(file.name, file, {
+          access: 'public',
+          handleUploadUrl: '/api/admin/blob/upload',
+        });
+
+        // 2. 업로드된 URL과 메타데이터를 서버에 저장
+        const res = await fetch('/api/photos', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                imageUrl: newBlob.url,
+                title: photoTitle,
+                description: photoDesc,
+                createdAt: photoCreatedAt ? new Date(photoCreatedAt).toISOString() : null
+            })
+        })
         
-        const res = await fetch('/api/photos', { method: 'POST', body: fd })
         let data
-        try {
+        const contentType = res.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
           data = await res.json()
-        } catch (e) {
-          throw new Error(`서버 응답 오류 (상태코드: ${res.status})`)
+        } else {
+          const text = await res.text()
+          throw new Error(`서버 저장 실패 (${res.status}): ${text.substring(0, 100)}`)
         }
 
         if (!res.ok) {
-          throw new Error(data.error || `업로드 실패 (상태코드: ${res.status})`)
+          throw new Error(data.error || `저장 실패 (상태코드: ${res.status})`)
         }
 
         const { photo } = data
@@ -149,30 +163,20 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
 
     try {
       for (const file of files) {
-        const fd = new FormData()
-        fd.append('image', file)
-        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-        
-        let data
-        const contentType = res.headers.get('content-type')
-        if (contentType && contentType.includes('application/json')) {
-          data = await res.json()
-        } else {
-          const text = await res.text()
-          throw new Error(`이미지 업로드 실패 (${res.status}): ${text.substring(0, 100)}`)
-        }
-        
-        if (!res.ok) {
-          throw new Error(data.error || '이미지 업로드 중 오류가 발생했습니다.')
-        }
-        
-        uploadedUrls.push(data.url)
+        // Vercel Blob에 직접 업로드 (10MB+ 지원)
+        const newBlob = await upload(file.name, file, {
+          access: 'public',
+          handleUploadUrl: '/api/admin/blob/upload',
+        });
+
+        const url = newBlob.url;
+        uploadedUrls.push(url)
         
         // 업로드된 이미지 리스트에 추가 (썸네일 선택용)
-        setArticleUploadedImages(prev => [...prev, data.url])
+        setArticleUploadedImages(prev => [...prev, url])
         // 첫 번째 이미지라면 썸네일로 자동 선택
         if (!articleThumbnailUrl && uploadedUrls.length === 1) {
-            setArticleThumbnailUrl(data.url)
+            setArticleThumbnailUrl(url)
         }
       }
 
@@ -433,7 +437,6 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                     📷 사진 추가 (여러 장 가능)
                   </button>
                   <input ref={imageUploadRef} type="file" accept="image/*" multiple hidden onChange={handleInsertImage} />
-                  <p className="upload-hint">※ 개별 사진은 4MB 이하를 권장합니다.</p>
                 </div>
 
                 {pendingGroupUrls.length > 0 && (

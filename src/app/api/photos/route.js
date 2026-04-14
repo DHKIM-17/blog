@@ -9,34 +9,47 @@ export async function POST(request) {
     return Response.json({ error: '인증이 필요합니다.' }, { status: 401 })
   }
 
-  const formData = await request.formData()
-  const file = formData.get('image')
-  const title = formData.get('title') || null
-  const description = formData.get('description') || null
+  let imageUrl, title, description, createdAt;
 
   try {
-    if (!file || typeof file === 'string') {
-      return Response.json({ error: '이미지 파일이 필요합니다.' }, { status: 400 })
+    const contentType = request.headers.get('content-type') || '';
+    
+    if (contentType.includes('application/json')) {
+      // JSON 방식으로 온 경우 (클라이언트 직접 업로드 결과 처리)
+      const body = await request.json();
+      imageUrl = body.imageUrl;
+      title = body.title;
+      description = body.description;
+      createdAt = body.createdAt;
+    } else {
+      // 기존 FormData 방식으로 온 경우 (작은 파일 등)
+      const formData = await request.formData();
+      const file = formData.get('image');
+      title = formData.get('title') || null;
+      description = formData.get('description') || null;
+      const createdAtStr = formData.get('createdAt');
+      createdAt = createdAtStr ? new Date(createdAtStr).toISOString() : null;
+
+      if (!file || typeof file === 'string') {
+        return Response.json({ error: '이미지 파일이 필요합니다.' }, { status: 400 });
+      }
+
+      // 서버에서 Blob에 직접 업로드 (4.5MB 제한 있음)
+      const timestamp = Date.now();
+      const fileName = `${timestamp}-${file.name || 'photo.png'}`;
+      const blob = await put(fileName, file, { access: 'public' });
+      imageUrl = blob.url;
     }
 
-    // 파일명 생성 및 보정 (이름이 없거나 중복 방지)
-    const timestamp = Date.now()
-    const originalName = file.name || 'photo.png'
-    const fileName = `${timestamp}-${originalName}`
+    if (!imageUrl) {
+      return Response.json({ error: '이미지 URL이 필요합니다.' }, { status: 400 });
+    }
 
-    // Vercel Blob에 업로드
-    const blob = await put(fileName, file, { access: 'public' })
-    const imageUrl = blob.url
-
-    const createdAtStr = formData.get('createdAt')
-    const createdAt = createdAtStr ? new Date(createdAtStr).toISOString() : null
-
-    const photo = await photoDb.create({ title, description, imageUrl, createdAt })
-
-    return Response.json({ photo })
+    const photo = await photoDb.create({ title, description, imageUrl, createdAt });
+    return Response.json({ photo });
   } catch (err) {
-    console.error('Photo Upload Error:', err)
-    return Response.json({ error: `갤러리 업로드 서버 오류: ${err.message}` }, { status: 500 })
+    console.error('Photo Process Error:', err);
+    return Response.json({ error: `갤러리 저장 서버 오류: ${err.message}` }, { status: 500 });
   }
 }
 

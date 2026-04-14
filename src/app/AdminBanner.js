@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { upload } from '@vercel/blob/client'
 
 function toISODate(dateStr) {
   if (!dateStr) return ''
@@ -110,30 +111,20 @@ export default function AdminBanner({ isAdmin }) {
 
     try {
       for (const file of files) {
-        const fd = new FormData()
-        fd.append('image', file)
-        const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-        
-        let data
-        const contentType = res.headers.get('content-type')
-        if (contentType && contentType.includes('application/json')) {
-          data = await res.json()
-        } else {
-          const text = await res.text()
-          throw new Error(`이미지 업로드 실패 (${res.status}): ${text.substring(0, 100)}`)
-        }
+        // Vercel Blob에 직접 업로드 (10MB+ 지원)
+        const newBlob = await upload(file.name, file, {
+          access: 'public',
+          handleUploadUrl: '/api/admin/blob/upload',
+        });
 
-        if (!res.ok) {
-          throw new Error(data.error || '이미지 업로드 중 오류가 발생했습니다.')
-        }
-
-        uploadedUrls.push(data.url)
+        const url = newBlob.url;
+        uploadedUrls.push(url)
         
         // 업로드된 이미지 리스트에 추가 (썸네일 선택용)
-        setArticleUploadedImages(prev => [...prev, data.url])
+        setArticleUploadedImages(prev => [...prev, url])
         // 첫 번째 이미지라면 썸네일로 자동 선택
         if (!articleThumbnailUrl && uploadedUrls.length === 1) {
-            setArticleThumbnailUrl(data.url)
+            setArticleThumbnailUrl(url)
         }
       }
 
@@ -172,22 +163,16 @@ export default function AdminBanner({ isAdmin }) {
           fd.append('image', file)
           setArticleUploading(true)
           try {
-            const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
-            
-            let data
-            const contentType = res.headers.get('content-type')
-            if (contentType && contentType.includes('application/json')) {
-              data = await res.json()
-            } else {
-              const text = await res.text()
-              throw new Error(`붙여넣기 업로드 실패 (${res.status}): ${text.substring(0, 100)}`)
-            }
-
-            insertAtCursor(`\n\n![이미지 설명](${data.url})\n\n`)
-            setArticleUploadedImages(prev => [...prev, data.url])
-            if (!articleThumbnailUrl) setArticleThumbnailUrl(data.url)
+            const newBlob = await upload(file.name, file, {
+              access: 'public',
+              handleUploadUrl: '/api/admin/blob/upload',
+            });
+            const url = newBlob.url;
+            insertAtCursor(`\n\n![이미지 설명](${url})\n\n`)
+            setArticleUploadedImages(prev => [...prev, url])
+            if (!articleThumbnailUrl) setArticleThumbnailUrl(url)
           } catch (err) {
-            alert('붙여넣기 업로드 실패')
+            alert('붙여넣기 업로드 실패: ' + err.message)
           } finally {
             setArticleUploading(false)
           }
@@ -316,9 +301,6 @@ export default function AdminBanner({ isAdmin }) {
                 <button type="button" className="btn btn-ghost" style={{ fontSize: '0.7rem' }} onClick={() => imageUploadRef.current?.click()}>📷 사진 추가</button>
                 <input ref={imageUploadRef} type="file" multiple hidden onChange={handleInsertImage} />
                 <input className="form-input" type="date" style={{ width: 'auto' }} value={articleCreatedAt} onChange={e => setArticleCreatedAt(e.target.value)} />
-                <p className="upload-hint" style={{ fontSize: '0.7rem', color: 'var(--ink-light)', marginTop: '0.4rem', width: '100%', flex: '0 0 100%' }}>
-                  ※ 개별 사진은 4MB 이하를 권장합니다.
-                </p>
               </div>
 
               {pendingGroupUrls.length > 0 && (
