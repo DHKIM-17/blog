@@ -105,9 +105,8 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
 
   // ----- Article Handlers (Naver Blog Style) -----
   
-  // 본문 내 사진 즉시 삽입 기능
-  async function handleInsertImage(e) {
-    const file = e.target.files?.[0]
+  // 본문 내 사진 전송 및 삽입 공통 로직
+  async function uploadImageFile(file) {
     if (!file) return
 
     const fd = new FormData()
@@ -140,8 +139,30 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
       }
     } catch (err) {
       alert(err.message)
-    } finally {
-      if (imageUploadRef.current) imageUploadRef.current.value = ''
+    }
+  }
+
+  // 버튼을 통한 파일 선택 시
+  async function handleInsertImage(e) {
+    const file = e.target.files?.[0]
+    await uploadImageFile(file)
+    if (imageUploadRef.current) imageUploadRef.current.value = ''
+  }
+
+  // 붙여넣기(Ctrl+V) 처리
+  async function handlePaste(e) {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (const item of items) {
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile()
+        if (file) {
+          // 기본 붙여넣기 동작 방지 (이미지만 업로드)
+          e.preventDefault()
+          await uploadImageFile(file)
+        }
+      }
     }
   }
 
@@ -340,7 +361,8 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                   className="form-textarea" 
                   style={{ minHeight: '400px', lineHeight: '1.6', fontSize: '1rem' }}
                   value={articleContent} 
-                  onChange={(e) => setArticleContent(e.target.value)} 
+                  onChange={(e) => setArticleContent(e.target.value)}
+                  onPaste={handlePaste}
                   placeholder="네이버 블로그처럼 글 중간중간 사진을 넣어 이야기를 완성해 보세요. (Markdown 지원)"
                 />
               </div>

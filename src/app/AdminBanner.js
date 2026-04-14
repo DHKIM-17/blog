@@ -77,8 +77,8 @@ export default function AdminBanner({ isAdmin }) {
     }
   }
 
-  async function handleInsertImage(e) {
-    const file = e.target.files?.[0]
+  // 본문 이미지 업로드 및 태그 삽입 공통 로직
+  async function uploadImageFile(file) {
     if (!file) return
     const fd = new FormData()
     fd.append('image', file)
@@ -97,6 +97,27 @@ export default function AdminBanner({ isAdmin }) {
       }
     } catch (err) {
       alert(err.message)
+    }
+  }
+
+  async function handleInsertImage(e) {
+    const file = e.target.files?.[0]
+    await uploadImageFile(file)
+    if (imageUploadRef.current) imageUploadRef.current.value = ''
+  }
+
+  async function handlePaste(e) {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (const item of items) {
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile()
+        if (file) {
+          e.preventDefault()
+          await uploadImageFile(file)
+        }
+      }
     }
   }
 
@@ -205,6 +226,7 @@ export default function AdminBanner({ isAdmin }) {
                 placeholder="내용을 입력하세요 (마크다운 지원)"
                 value={articleContent}
                 onChange={e => setArticleContent(e.target.value)}
+                onPaste={handlePaste}
               />
 
               {articleUploadedImages.length > 0 && (
