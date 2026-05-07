@@ -64,7 +64,7 @@ export async function PATCH(request, { params }) {
   const title = formData.get('title')
   const content = formData.get('content')
   const newImages = formData.getAll('images')
-  const existingThumbnailUrl = formData.get('existingThumbnailUrl')
+  const thumbnailUrlParam = formData.get('thumbnailUrl')
   const createdAt = formData.get('createdAt')
   const category = formData.get('category')
 
@@ -73,20 +73,22 @@ export async function PATCH(request, { params }) {
     return Response.json({ error: '글을 찾을 수 없습니다.' }, { status: 404 })
   }
 
-  let imageUrls = [...(existingArticle.images || [])]
-  let thumbnailUrl = existingThumbnailUrl || existingArticle.thumbnailUrl
+  // [v1.2.1 Bugfix] 클라이언트에서 전달받은 이미지 목록으로 완전히 덮어써서 개별 삭제를 반영
+  let imageUrls = []
 
-  // 새 이미지들이 업로드된 경우 Vercel Blob에 저장
+  // 새 이미지 또는 유지되는 기존 이미지 수집
   for (let i = 0; i < newImages.length; i++) {
     const image = newImages[i]
     if (image && typeof image !== 'string' && image.size > 0) {
       const blob = await put(image.name, image, { access: 'public' })
       imageUrls.push(blob.url)
     } else if (typeof image === 'string' && image.length > 0) {
-      // 이미 URL로 전달된 경우 (중복 방지용)
-      if (!imageUrls.includes(image)) imageUrls.push(image)
+      imageUrls.push(image)
     }
   }
+
+  // 서버에 저장될 대표 사진도 클라이언트가 명시한 값으로 강제 업데이트
+  let thumbnailUrl = thumbnailUrlParam || null
 
   const updatedArticle = await articleDb.update(articleId, {
     title: title || existingArticle.title,

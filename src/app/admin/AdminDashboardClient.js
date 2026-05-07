@@ -3,7 +3,10 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { upload } from '@vercel/blob/client'
+
+// [v1.0.4] 하이브리드 모드 지원 및 상태 표시
+const VERSION = 'Admin v1.0.4'
+const isDBConnected = !!process.env.NEXT_PUBLIC_POSTGRES_URL || true;
 
 function formatDate(dateStr) {
   const d = new Date(dateStr)
@@ -27,6 +30,52 @@ function toISODate(dateStr) {
 export default function AdminDashboardClient({ initialPhotos, initialArticles }) {
   const router = useRouter()
   const photoInputRef = useRef(null)
+
+  // [v1.0.1] 안전한 JSON 파싱 유틸리티
+  const safeJson = async (res, actionName) => {
+    const contentType = res.headers.get('content-type')
+    if (contentType && contentType.includes('application/json')) {
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `${actionName} 실패 (상태: ${res.status})`)
+      return data
+    } else {
+      const text = await res.text()
+      if (res.status === 413 || text.includes('Request Entity Too Large')) {
+        throw new Error(`${actionName} 오류: 파일 용량이 너무 큼 (Vercel 4.5MB 제한). 고화질 사진을 여러 장 한꺼번에 올리는 경우 발생할 수 있습니다.`)
+      }
+      throw new Error(`${actionName} 오류 (${res.status}): 서버가 비정상 응답을 반환했습니다.`)
+    }
+  }
+
+  // --- 공통 R2 다이렉트 업로드 함수 ---
+  async function uploadToR2(file) {
+    // 1. 서버에 Presigned URL 요청
+    const res = await fetch('/api/admin/blob/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: file.name, contentType: file.type || 'application/octet-stream' })
+    });
+    
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || '업로드 URL 요청 실패');
+    }
+    
+    const { uploadUrl, publicUrl } = await res.json();
+
+    // 2. R2로 다이렉트 업로드 (PUT)
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: file,
+      headers: { 'Content-Type': file.type || 'application/octet-stream' }
+    });
+
+    if (!uploadRes.ok) {
+      throw new Error('R2 서버 업로드 실패');
+    }
+
+    return publicUrl;
+  }
   
   // Article Refs
   const articleContentRef = useRef(null)
@@ -79,38 +128,22 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
     setPhotoUploading(true)
     try {
       for (const file of selectedPhotoFiles) {
-        // 1. Vercel Blob에 직접 업로드 (용량 제한 우회)
-        const newBlob = await upload(file.name, file, {
-          access: 'public',
-          handleUploadUrl: '/api/admin/blob/upload',
-        });
+        // 1. R2 다이렉트 업로드 (용량 제한 없음)
+        const url = await uploadToR2(file);
 
         // 2. 업로드된 URL과 메타데이터를 서버에 저장
         const res = await fetch('/api/photos', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                imageUrl: newBlob.url,
+                imageUrl: url,
                 title: photoTitle,
                 description: photoDesc,
                 createdAt: photoCreatedAt ? new Date(photoCreatedAt).toISOString() : null
             })
         })
-        
-        let data
-        const contentType = res.headers.get('content-type')
-        if (contentType && contentType.includes('application/json')) {
-          data = await res.json()
-        } else {
-          const text = await res.text()
-          throw new Error(`서버 저장 실패 (${res.status}): ${text.substring(0, 100)}`)
-        }
 
-        if (!res.ok) {
-          throw new Error(data.error || `저장 실패 (상태코드: ${res.status})`)
-        }
-
-        const { photo } = data
+        const { photo } = await safeJson(res, '갤러리 저장')
         setPhotos((prev) => [photo, ...prev])
       }
       setSelectedPhotoFiles([])
@@ -120,7 +153,7 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
       setPhotoCreatedAt(toISODate(new Date()))
       if (photoInputRef.current) photoInputRef.current.value = ''
     } catch (err) {
-      alert('오류: ' + err.message)
+      alert(err.message)
     } finally {
       setPhotoUploading(false)
     }
@@ -128,8 +161,17 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
 
   async function handlePhotoDelete(id) {
     if (!confirm('삭제하시겠습니까?')) return
-    const res = await fetch(`/api/photos/${id}`, { method: 'DELETE' })
-    if (res.ok) setPhotos((prev) => prev.filter((p) => p.id !== id))
+    try {
+      const res = await fetch(`/api/photos/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const text = await res.text()
+        console.warn('Photo delete warning:', text)
+      }
+      setPhotos((prev) => prev.filter((p) => p.id !== id))
+    } catch (err) {
+      console.error('Photo delete error:', err)
+      alert('삭제 중 오류가 발생했습니다.')
+    }
   }
 
   // ----- Article Handlers (Naver Blog Style) -----
@@ -163,13 +205,8 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
 
     try {
       for (const file of files) {
-        // Vercel Blob에 직접 업로드 (10MB+ 지원)
-        const newBlob = await upload(file.name, file, {
-          access: 'public',
-          handleUploadUrl: '/api/admin/blob/upload',
-        });
-
-        const url = newBlob.url;
+        // R2 다이렉트 업로드
+        const url = await uploadToR2(file);
         uploadedUrls.push(url)
         
         // 업로드된 이미지 리스트에 추가 (썸네일 선택용)
@@ -209,9 +246,18 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
       if (item.type.indexOf('image') !== -1) {
         const file = item.getAsFile()
         if (file) {
-          // 기본 붙여넣기 동작 방지 (이미지만 업로드)
           e.preventDefault()
-          await uploadImageFile(file)
+          setArticleUploading(true)
+          try {
+            const url = await uploadToR2(file);
+            insertAtCursor(`\n\n![이미지 설명](${url})\n\n`)
+            setArticleUploadedImages(prev => [...prev, url])
+            if (!articleThumbnailUrl) setArticleThumbnailUrl(url)
+          } catch (err) {
+            alert('붙여넣기 업로드 실패: ' + err.message)
+          } finally {
+            setArticleUploading(false)
+          }
         }
       }
     }
@@ -235,20 +281,7 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
       })
 
       const res = await fetch('/api/articles', { method: 'POST', body: fd })
-      
-      let data
-      const contentType = res.headers.get('content-type')
-      if (contentType && contentType.includes('application/json')) {
-        data = await res.json()
-      } else {
-        const text = await res.text()
-        throw new Error(`저장 실패 (${res.status}): ${text.substring(0, 100)}`)
-      }
-
-      if (!res.ok) {
-        throw new Error(data.error || '저장 실패')
-      }
-
+      const data = await safeJson(res, '글 저장')
       const { article } = data
       setArticles((prev) => [article, ...prev])
       
@@ -259,7 +292,7 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
       setArticleUploadedImages([])
       setArticleThumbnailUrl('')
     } catch (err) {
-      alert('오류: ' + err.message)
+      alert(err.message)
     } finally {
       setArticleUploading(false)
     }
@@ -267,8 +300,17 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
 
   async function handleArticleDelete(id) {
     if (!confirm('삭제하시겠습니까?')) return
-    const res = await fetch(`/api/articles/${id}`, { method: 'DELETE' })
-    if (res.ok) setArticles((prev) => prev.filter((a) => a.id !== id))
+    try {
+      const res = await fetch(`/api/articles/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const text = await res.text()
+        console.warn('Article delete warning:', text)
+      }
+      setArticles((prev) => prev.filter((a) => a.id !== id))
+    } catch (err) {
+      console.error('Article delete error:', err)
+      alert('삭제 중 오류가 발생했습니다.')
+    }
   }
 
   function startEditArticle(article) {
@@ -279,6 +321,34 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
     setEditThumbnailUrl(article.thumbnailUrl || '')
     setEditCategory(article.category || '잡담')
     setEditUploadedImages(article.images || [])
+  }
+
+  // [v1.2.1] 사진 삭제 및 본문 동기화 지우개
+  function handleRemoveEditImage(urlToRemove) {
+    if (!confirm('이 사진을 첨부 목록과 본문에서 완전히 삭제하시겠습니까?')) return;
+    
+    // 1. 첨부 배열에서 제거
+    const newImages = editUploadedImages.filter(url => url !== urlToRemove);
+    setEditUploadedImages(newImages);
+    
+    // 2. 만약 지워진 사진이 대표 사진이었다면 다음 사진으로 바통 터치
+    if (editThumbnailUrl === urlToRemove) {
+      setEditThumbnailUrl(newImages.length > 0 ? newImages[0] : '');
+    }
+    
+    // 3. 본문에 찍혀있는 마크다운 URL 흔적까지 정규식으로 박멸
+    const escapedUrl = urlToRemove.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regexMarkdown = new RegExp(`!\\[(.*?)\\]\\(${escapedUrl}\\)`, 'g');
+    const regexPlain = new RegExp(escapedUrl, 'g');
+    const regexCollageFix = new RegExp(`,?${escapedUrl},?`, 'g'); // 콜라주 찌꺼기 콤마 제거 방어망
+    
+    let updatedContent = editContent;
+    updatedContent = updatedContent.replace(regexMarkdown, '');
+    updatedContent = updatedContent.replace(regexPlain, '');
+    updatedContent = updatedContent.replace(regexCollageFix, ','); // 콜라주에서 URL만 빠졌을 때 콤마 정리
+    updatedContent = updatedContent.replace(/\(,/g, '(').replace(/,\)/g, ')'); 
+    
+    setEditContent(updatedContent);
   }
 
   async function handleArticleUpdate(id) {
@@ -296,8 +366,9 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
         method: 'PATCH',
         body: fd
       })
-      if (!res.ok) throw new Error('업데이트 실패')
-      const { article } = await res.json()
+      
+      const data = await safeJson(res, '글 업데이트')
+      const { article } = data
       setArticles(prev => prev.map(a => a.id === id ? article : a))
       setEditingId(null)
     } catch (err) {
@@ -306,7 +377,15 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
   }
 
   async function handleLogout() {
-    await fetch('/api/admin/logout', { method: 'POST' })
+    try {
+      const res = await fetch('/api/admin/logout', { method: 'POST' })
+      if (!res.ok) {
+        const text = await res.text()
+        console.warn('Logout warning:', text)
+      }
+    } catch (err) {
+      console.error('Logout error:', err)
+    }
     router.push('/admin/login')
     router.refresh()
   }
@@ -314,7 +393,23 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
   return (
     <div className="admin-layout">
       <nav className="admin-nav">
-        <span className="admin-nav-title">🦦 — Admin Dashboard</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <span className="admin-nav-title">🦦 Admin v1.0.3</span>
+          <span style={{ 
+            fontSize: '9px', 
+            padding: '2px 6px', 
+            borderRadius: '10px', 
+            background: 'var(--paper-dark)',
+            color: 'var(--ink-light)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            border: '1px solid var(--border)'
+          }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff4d4f' }}></span>
+            DB 연결 필요 (로컬 모드)
+          </span>
+        </div>
         <div className="admin-nav-actions">
           <Link href="/" className="admin-nav-link">블로그 홈으로</Link>
           <button onClick={handleLogout} className="btn btn-ghost" style={{ padding: '0.4rem 0.9rem', fontSize: '0.7rem' }}>
@@ -521,26 +616,52 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                       </div>
                       <textarea className="form-textarea" value={editContent} onChange={(e) => setEditContent(e.target.value)} placeholder="본문" style={{ minHeight: '150px' }} />
                       
-                      <p style={{ fontSize: '0.75rem', marginBottom: '-0.3rem' }}>대표 이미지 변경:</p>
+                      <p style={{ fontSize: '0.75rem', marginBottom: '-0.3rem', marginTop: '0.5rem', color: 'var(--ink-light)' }}>
+                        첨부 사진 관리 (사진 클릭: 대표 지정 / ✕: 삭제)
+                      </p>
                       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-                        {a.images && a.images.map((url, i) => (
+                        {editUploadedImages && editUploadedImages.map((url, i) => (
                            <div 
                            key={i} 
-                           onClick={() => setEditThumbnailUrl(url)}
                            style={{ 
                              position: 'relative', 
                              cursor: 'pointer',
-                             border: editThumbnailUrl === url ? '3px solid var(--accent)' : '3px solid transparent',
+                             border: editThumbnailUrl === url ? '3px solid var(--accent)' : '2px solid var(--border)',
                              borderRadius: '4px',
-                             overflow: 'hidden'
+                             overflow: 'hidden',
+                             width: 60, height: 60
                            }}
                          >
-                           <img src={url} alt={`existing-${i}`} style={{ width: 50, height: 50, objectFit: 'cover' }} />
+                           <img 
+                             src={url} 
+                             alt={`existing-${i}`} 
+                             onClick={() => setEditThumbnailUrl(url)} 
+                             style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                           />
+                           
+                           {/* 대표 뱃지 */}
+                           {editThumbnailUrl === url && (
+                             <div style={{ pointerEvents: 'none', position: 'absolute', top: 0, left: 0, background: 'var(--accent)', color: 'white', fontSize: '10px', padding: '2px 4px' }}>대표</div>
+                           )}
+                           
+                           {/* 개별 삭제(X) 버튼 오버레이 */}
+                           <button 
+                             type="button"
+                             onClick={(e) => { e.stopPropagation(); handleRemoveEditImage(url); }}
+                             style={{ 
+                               position: 'absolute', top: '2px', right: '2px', 
+                               background: 'rgba(255,0,0,0.85)', color: 'white', 
+                               border: 'none', borderRadius: '50%', 
+                               width: '18px', height: '18px', fontSize: '10px', fontWeight: 'bold',
+                               display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' 
+                             }}
+                           >
+                             ✕
+                           </button>
                          </div>
                         ))}
                       </div>
 
-                      <textarea className="form-textarea" value={editContent} onChange={(e) => setEditContent(e.target.value)} placeholder="본문" style={{ minHeight: '150px' }} />
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button className="btn btn-primary" onClick={() => handleArticleUpdate(a.id)} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>저장</button>
                         <button className="btn btn-ghost" onClick={() => setEditingId(null)} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>취소</button>
@@ -564,6 +685,7 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
           </section>
         )}
       </main>
+      <div className="admin-version-tag">Admin v1.0.3 (Hybrid Mode)</div>
     </div>
   )
 }

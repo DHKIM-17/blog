@@ -14,17 +14,29 @@ export default function AdminLoginPage() {
     setPending(true)
     setError('')
 
-    const res = await fetch('/api/admin/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    })
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
 
-    if (res.ok) {
-      window.location.href = '/admin'
-    } else {
-      const data = await res.json()
-      setError(data.error || '로그인에 실패했습니다.')
+      if (res.ok) {
+        window.location.href = '/admin'
+      } else {
+        let data
+        const contentType = res.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          data = await res.json()
+        } else {
+          const text = await res.text()
+          throw new Error(`로그인 실패 (${res.status}): ${text.substring(0, 50)}`)
+        }
+        setError(data.error || '로그인에 실패했습니다.')
+        setPending(false)
+      }
+    } catch (err) {
+      setError('오류: ' + err.message)
       setPending(false)
     }
   }

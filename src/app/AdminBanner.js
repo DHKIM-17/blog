@@ -18,6 +18,24 @@ function toISODate(dateStr) {
 export default function AdminBanner({ isAdmin }) {
   const router = useRouter()
   const pathname = usePathname()
+  const isDBConnected = !!process.env.NEXT_PUBLIC_POSTGRES_URL || true; // 클라이언트 사이드 체크용 가상 환경 변수 고려
+  // 실제로는 서버에서 판단해서 내려주는 것이 좋으나, 여기서는 시각적 보조를 위해 추가
+
+  // [v1.0.1] 안전한 JSON 파싱 유틸리티
+  const safeJson = async (res, actionName) => {
+    const contentType = res.headers.get('content-type')
+    if (contentType && contentType.includes('application/json')) {
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `${actionName} 실패 (상태: ${res.status})`)
+      return data
+    } else {
+      const text = await res.text()
+      if (res.status === 413 || text.includes('Request Entity Too Large')) {
+        throw new Error(`${actionName} 오류: 파일 용량이 너무 큼 (Vercel 4.5MB 제한). 직접 업로드 설정을 확인하세요.`)
+      }
+      throw new Error(`${actionName} 오류 (${res.status}): 서버가 비정상 응답을 반환했습니다.`)
+    }
+  }
 
   const [isOpen, setIsOpen] = useState(false)
   const [activeMode, setActiveMode] = useState(null)
@@ -38,6 +56,7 @@ export default function AdminBanner({ isAdmin }) {
   const [articleContent, setArticleContent] = useState('')
   const [articleCreatedAt, setArticleCreatedAt] = useState(toISODate(new Date()))
   const [articleUploadedImages, setArticleUploadedImages] = useState([])
+  const [articleThumbnailUrl, setArticleThumbnailUrl] = useState('')
   const [articleCategory, setArticleCategory] = useState('잡담')
   const [articleUploading, setArticleUploading] = useState(false)
 
@@ -58,14 +77,25 @@ export default function AdminBanner({ isAdmin }) {
     if (!selectedPhotoFile) return
     setPhotoUploading(true)
     try {
-      const fd = new FormData()
-      fd.append('image', selectedPhotoFile)
-      fd.append('title', photoTitle)
-      fd.append('description', photoDesc)
-      if (photoCreatedAt) fd.append('createdAt', new Date(photoCreatedAt).toISOString())
+      // 1. Vercel Blob에 직접 업로드 (용량 제한 우회)
+          const newBlob = await upload(file.name, file, {
+            access: 'public',
+            handleUploadUrl: '/api/admin/blob/upload',
+          });
 
-      const res = await fetch('/api/photos', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error('업로드 실패')
+      // 2. 업로드된 URL과 메타데이터를 서버에 저장
+      const res = await fetch('/api/photos', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              imageUrl: newBlob.url,
+              title: photoTitle,
+              description: photoDesc,
+              createdAt: photoCreatedAt ? new Date(photoCreatedAt).toISOString() : null
+          })
+      })
+
+      const { photo } = await safeJson(res, '갤러리 저장')
 
       alert('사진이 업로드되었습니다.')
       setIsOpen(false)
@@ -75,9 +105,22 @@ export default function AdminBanner({ isAdmin }) {
       setPhotoDesc('')
       router.refresh()
     } catch (err) {
-      alert(err.message)
+      alert('오류: ' + err.message)
     } finally {
       setPhotoUploading(false)
+    }
+  }
+
+  // [v1.0.2] DB 스키마 자동 수리 기능
+  async function handleRepairDB() {
+    if (!confirm('데이터베이스 스키마를 수리하시겠습니까? (category 컬럼 등 추가)')) return
+    try {
+      const res = await fetch('/api/debug/migrate')
+      const data = await safeJson(res, 'DB 수리')
+      alert(data.message)
+      router.refresh()
+    } catch (err) {
+      alert(err.message)
     }
   }
 
@@ -158,11 +201,9 @@ export default function AdminBanner({ isAdmin }) {
         const file = item.getAsFile()
         if (file) {
           e.preventDefault()
-          
-          const fd = new FormData()
-          fd.append('image', file)
           setArticleUploading(true)
           try {
+            // Vercel Blob에 직접 업로드
             const newBlob = await upload(file.name, file, {
               access: 'public',
               handleUploadUrl: '/api/admin/blob/upload',
@@ -195,19 +236,7 @@ export default function AdminBanner({ isAdmin }) {
       articleUploadedImages.forEach(url => fd.append('images', url))
 
       const res = await fetch('/api/articles', { method: 'POST', body: fd })
-      
-      let data
-      const contentType = res.headers.get('content-type')
-      if (contentType && contentType.includes('application/json')) {
-        data = await res.json()
-      } else {
-        const text = await res.text()
-        throw new Error(`저장 실패 (${res.status}): ${text.substring(0, 100)}`)
-      }
-
-      if (!res.ok) {
-        throw new Error(data.error || '저장 실패')
-      }
+      await safeJson(res, '글 발행')
 
       alert('이야기가 발행되었습니다.')
       setIsOpen(false)
@@ -219,7 +248,7 @@ export default function AdminBanner({ isAdmin }) {
       router.refresh()
       router.push('/articles')
     } catch (err) {
-      alert(err.message)
+      alert('오류: ' + err.message)
     } finally {
       setArticleUploading(false)
     }
@@ -236,7 +265,20 @@ export default function AdminBanner({ isAdmin }) {
     <div className="admin-banner-wrapper">
       <div className="admin-banner-bar">
         <div className="banner-left">
-          <span className="banner-tag">Admin Mode</span>
+          <span className="banner-tag">Admin v1.0.3</span>
+          <span style={{ 
+            fontSize: '9px', 
+            padding: '2px 6px', 
+            borderRadius: '10px', 
+            background: 'rgba(255,255,255,0.1)',
+            color: 'rgba(255,255,255,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff4d4f' }}></span>
+            DB 연결 필요
+          </span>
           <button className={`banner-btn ${activeMode === 'photo' ? 'active' : ''}`} onClick={() => {
             setIsOpen(activeMode === 'photo' ? !isOpen : true)
             setActiveMode('photo')
@@ -341,7 +383,10 @@ export default function AdminBanner({ isAdmin }) {
             </form>
           )}
         </div>
-        <button className="drawer-close" onClick={() => setIsOpen(false)}>×</button>
+        <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <button onClick={handleRepairDB} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.5)', fontSize: '9px', padding: '2px 6px', borderRadius: '3px', cursor: 'pointer' }}>DB 스키마 수리</button>
+          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', pointerEvents: 'none' }}>Admin v1.0.3</div>
+        </div>
       </div>
     </div>
   )
