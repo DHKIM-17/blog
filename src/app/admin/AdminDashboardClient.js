@@ -394,7 +394,7 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
     <div className="admin-layout">
       <nav className="admin-nav">
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <span className="admin-nav-title">🦦 Admin v1.0.3</span>
+          <span className="admin-nav-title">📌 Admin v1.0.3</span>
           <span style={{ 
             fontSize: '9px', 
             padding: '2px 6px', 
@@ -516,7 +516,10 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                 >
                   <option value="여행">여행</option>
                   <option value="영화">영화</option>
+                  <option value="독후감">독후감</option>
                   <option value="잡담">잡담</option>
+                  <option value="유럽생활일지">유럽생활일지</option>
+                  <option value="경기장 투어">경기장 투어</option>
                 </select>
               </div>
 
@@ -610,7 +613,10 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                         >
                           <option value="여행">여행</option>
                           <option value="영화">영화</option>
+                          <option value="독후감">독후감</option>
                           <option value="잡담">잡담</option>
+                          <option value="유럽생활일지">유럽생활일지</option>
+                          <option value="경기장 투어">경기장 투어</option>
                         </select>
                         <input type="date" className="form-input" style={{ flex: 1 }} value={editCreatedAt} onChange={(e) => setEditCreatedAt(e.target.value)} />
                       </div>

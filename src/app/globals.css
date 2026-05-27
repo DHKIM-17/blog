@@ -59,8 +59,7 @@ a {
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
+  position: relative;
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -167,6 +166,7 @@ a {
 }
 
 .article-card-thumb {
+  position: relative;
   aspect-ratio: 16/10;
   overflow: hidden;
   background: var(--paper-darker);
@@ -734,17 +734,9 @@ a {
   box-shadow: var(--shadow-md);
 }
 
-/* Adjust global header to accommodate sticky banner */
-.global-header {
-  top: 44px; /* banner height */
-}
-
 @media (max-width: 768px) {
   .quick-form-grid {
     grid-template-columns: 1fr;
-  }
-  .global-header {
-     top: 88px;
   }
 }
 

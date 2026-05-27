@@ -12,11 +12,10 @@ function formatDate(dateStr) {
 }
 
 export default function ArticlesClient({ initialArticles }) {
-  const [activeCategory, setActiveCategory] = useState('전체')
-  const categories = ['전체', '여행', '영화', '잡담']
+  const [activeCategory, setActiveCategory] = useState('여행')
+  const categories = ['여행', '영화', '독후감', '잡담', '유럽생활일지', '경기장 투어']
 
   const filteredArticles = (initialArticles || []).filter(a => {
-    if (activeCategory === '전체') return true
     const cat = (a.category || '잡담').trim()
     return cat === activeCategory
   })

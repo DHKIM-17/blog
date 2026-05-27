@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { upload } from '@vercel/blob/client'
 
 function toISODate(dateStr) {
   if (!dateStr) return ''
@@ -35,6 +34,34 @@ export default function AdminBanner({ isAdmin }) {
       }
       throw new Error(`${actionName} 오류 (${res.status}): 서버가 비정상 응답을 반환했습니다.`)
     }
+  }
+
+  // --- 공통 R2 다이렉트 업로드 함수 ---
+  async function uploadToR2(file) {
+    const res = await fetch('/api/admin/blob/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: file.name, contentType: file.type || 'application/octet-stream' })
+    });
+    
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || '업로드 URL 요청 실패');
+    }
+    
+    const { uploadUrl, publicUrl } = await res.json();
+
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: file,
+      headers: { 'Content-Type': file.type || 'application/octet-stream' }
+    });
+
+    if (!uploadRes.ok) {
+      throw new Error('R2 서버 업로드 실패');
+    }
+
+    return publicUrl;
   }
 
   const [isOpen, setIsOpen] = useState(false)
@@ -77,18 +104,14 @@ export default function AdminBanner({ isAdmin }) {
     if (!selectedPhotoFile) return
     setPhotoUploading(true)
     try {
-      // 1. Vercel Blob에 직접 업로드 (용량 제한 우회)
-          const newBlob = await upload(file.name, file, {
-            access: 'public',
-            handleUploadUrl: '/api/admin/blob/upload',
-          });
+      const url = await uploadToR2(selectedPhotoFile);
 
       // 2. 업로드된 URL과 메타데이터를 서버에 저장
       const res = await fetch('/api/photos', { 
           method: 'POST', 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-              imageUrl: newBlob.url,
+              imageUrl: url,
               title: photoTitle,
               description: photoDesc,
               createdAt: photoCreatedAt ? new Date(photoCreatedAt).toISOString() : null
@@ -154,13 +177,7 @@ export default function AdminBanner({ isAdmin }) {
 
     try {
       for (const file of files) {
-        // Vercel Blob에 직접 업로드 (10MB+ 지원)
-        const newBlob = await upload(file.name, file, {
-          access: 'public',
-          handleUploadUrl: '/api/admin/blob/upload',
-        });
-
-        const url = newBlob.url;
+        const url = await uploadToR2(file);
         uploadedUrls.push(url)
         
         // 업로드된 이미지 리스트에 추가 (썸네일 선택용)
@@ -203,12 +220,7 @@ export default function AdminBanner({ isAdmin }) {
           e.preventDefault()
           setArticleUploading(true)
           try {
-            // Vercel Blob에 직접 업로드
-            const newBlob = await upload(file.name, file, {
-              access: 'public',
-              handleUploadUrl: '/api/admin/blob/upload',
-            });
-            const url = newBlob.url;
+            const url = await uploadToR2(file);
             insertAtCursor(`\n\n![이미지 설명](${url})\n\n`)
             setArticleUploadedImages(prev => [...prev, url])
             if (!articleThumbnailUrl) setArticleThumbnailUrl(url)
@@ -338,7 +350,10 @@ export default function AdminBanner({ isAdmin }) {
                 >
                   <option value="여행">여행</option>
                   <option value="영화">영화</option>
+                  <option value="독후감">독후감</option>
                   <option value="잡담">잡담</option>
+                  <option value="유럽생활일지">유럽생활일지</option>
+                  <option value="경기장 투어">경기장 투어</option>
                 </select>
                 <button type="button" className="btn btn-ghost" style={{ fontSize: '0.7rem' }} onClick={() => imageUploadRef.current?.click()}>📷 사진 추가</button>
                 <input ref={imageUploadRef} type="file" multiple hidden onChange={handleInsertImage} />

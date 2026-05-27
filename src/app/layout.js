@@ -4,7 +4,7 @@ import AdminBanner from './AdminBanner'
 import './globals.css'
 
 export const metadata = {
-  title: '🦦 — 일상의 순간들',
+  title: '📌 — 일상의 순간들',
   description: '디지털 카메라로 담은 여행과 일상의 기록',
 }
 
@@ -18,7 +18,7 @@ export default async function RootLayout({ children }) {
         <header className="global-header">
           <div className="header-container">
             <Link href="/" className="site-logo">
-              🦦
+              📌
             </Link>
             <nav className="site-nav">
               <Link href="/" className="nav-link">Gallery</Link>
@@ -28,7 +28,7 @@ export default async function RootLayout({ children }) {
         </header>
         <main>{children}</main>
         <footer className="global-footer">
-          <p>© 2026 🦦 — All Rights Reserved</p>
+          <p>© 2026 📌 — All Rights Reserved</p>
         </footer>
       </body>
     </html>
