@@ -43,3 +43,9 @@ next-env.d.ts
 /src/generated/prisma
 
 .vercel
+
+# local secrets / credential scripts (do not commit)
+scratch/pass.txt
+scratch/add_vercel_env.mjs
+scratch/push_vercel_env.js
+scratch/redeploy_vercel.mjs
