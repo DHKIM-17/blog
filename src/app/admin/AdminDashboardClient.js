@@ -91,7 +91,13 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
   const [photoDesc, setPhotoDesc] = useState('')
   const [photoCreatedAt, setPhotoCreatedAt] = useState(toISODate(new Date()))
   const [photoUploading, setPhotoUploading] = useState(false)
-  
+
+  // Photo Edit State
+  const [editingPhotoId, setEditingPhotoId] = useState(null)
+  const [editPhotoTitle, setEditPhotoTitle] = useState('')
+  const [editPhotoDesc, setEditPhotoDesc] = useState('')
+  const [editPhotoCreatedAt, setEditPhotoCreatedAt] = useState('')
+
   // Article State (Stories)
   const [articles, setArticles] = useState(initialArticles)
   const [articleTitle, setArticleTitle] = useState('')
@@ -171,6 +177,32 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
     } catch (err) {
       console.error('Photo delete error:', err)
       alert('삭제 중 오류가 발생했습니다.')
+    }
+  }
+
+  function startEditPhoto(photo) {
+    setEditingPhotoId(photo.id)
+    setEditPhotoTitle(photo.title || '')
+    setEditPhotoDesc(photo.description || '')
+    setEditPhotoCreatedAt(toISODate(photo.createdAt))
+  }
+
+  async function handlePhotoUpdate(id) {
+    try {
+      const res = await fetch(`/api/photos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editPhotoTitle,
+          description: editPhotoDesc,
+          createdAt: editPhotoCreatedAt ? new Date(editPhotoCreatedAt).toISOString() : null,
+        })
+      })
+      const { photo } = await safeJson(res, '갤러리 수정')
+      setPhotos((prev) => prev.map((p) => (p.id === id ? photo : p)))
+      setEditingPhotoId(null)
+    } catch (err) {
+      alert(err.message)
     }
   }
 
@@ -477,13 +509,28 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
               {photos.map(p => (
                 <div key={p.id} className="admin-item">
                   <img src={p.imageUrl} alt={p.title} />
-                  <div style={{ flex: 1 }}>
-                    <h4 className="admin-photo-meta-title">{p.title || '제목 없음'}</h4>
-                    <p className="admin-photo-meta-date">{formatDate(p.createdAt)}</p>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <button className="btn btn-danger" onClick={() => handlePhotoDelete(p.id)} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>삭제</button>
-                  </div>
+                  {editingPhotoId === p.id ? (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <input type="text" className="form-input" value={editPhotoTitle} onChange={(e) => setEditPhotoTitle(e.target.value)} placeholder="제목" />
+                      <input type="date" className="form-input" value={editPhotoCreatedAt} onChange={(e) => setEditPhotoCreatedAt(e.target.value)} />
+                      <textarea className="form-textarea" value={editPhotoDesc} onChange={(e) => setEditPhotoDesc(e.target.value)} placeholder="코멘트" style={{ minHeight: '80px' }} />
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button className="btn btn-primary" onClick={() => handlePhotoUpdate(p.id)} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>저장</button>
+                        <button className="btn btn-ghost" onClick={() => setEditingPhotoId(null)} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>취소</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1 }}>
+                      <h4 className="admin-photo-meta-title">{p.title || '제목 없음'}</h4>
+                      <p className="admin-photo-meta-date">{formatDate(p.createdAt)}</p>
+                    </div>
+                  )}
+                  {editingPhotoId !== p.id && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <button className="btn btn-ghost" onClick={() => startEditPhoto(p)} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>수정</button>
+                      <button className="btn btn-danger" onClick={() => handlePhotoDelete(p.id)} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>삭제</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
