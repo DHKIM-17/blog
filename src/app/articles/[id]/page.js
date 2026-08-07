@@ -2,6 +2,7 @@ import { articleDb } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
 import Link from 'next/link'
 import ArticleImageGroup from '../ArticleImageGroup'
 
@@ -71,8 +72,9 @@ export default async function ArticleDetailPage({ params }) {
 
 
       <div className="article-detail-content prose">
-        <ReactMarkdown 
+        <ReactMarkdown
             remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
             components={{
               // 링크 오버라이드 (v1.1.5: 주소가 구글 맵/유튜브일 경우 임베드로 변환)
               a: ({ href, children }) => {

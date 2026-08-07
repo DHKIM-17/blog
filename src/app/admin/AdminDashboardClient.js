@@ -79,7 +79,37 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
   
   // Article Refs
   const articleContentRef = useRef(null)
+  const editContentRef = useRef(null)
   const imageUploadRef = useRef(null)
+
+  const FONT_SIZES = [
+    { label: '작게', value: '0.8em' },
+    { label: '보통', value: '1em' },
+    { label: '크게', value: '1.4em' },
+    { label: '아주 크게', value: '1.8em' },
+  ]
+
+  // 텍스트 영역에서 선택한 구간을 태그로 감싸는 공용 유틸 (볼드, 글자 크기 등)
+  function wrapSelection(textareaRef, value, setValue, before, after) {
+    const textarea = textareaRef.current
+    if (!textarea) {
+      setValue(value + before + after)
+      return
+    }
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selected = value.substring(start, end)
+    const newValue = value.substring(0, start) + before + selected + after + value.substring(end)
+    setValue(newValue)
+
+    setTimeout(() => {
+      textarea.focus()
+      const cursorPos = selected
+        ? start + before.length + selected.length + after.length
+        : start + before.length
+      textarea.setSelectionRange(cursorPos, cursorPos)
+    }, 10)
+  }
 
   const [activeTab, setActiveTab] = useState('articles')
 
@@ -582,6 +612,29 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                     📷 사진 추가 (여러 장 가능)
                   </button>
                   <input ref={imageUploadRef} type="file" accept="image/*" multiple hidden onChange={handleInsertImage} />
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', fontWeight: 700, marginLeft: '0.5rem' }}
+                    onClick={() => wrapSelection(articleContentRef, articleContent, setArticleContent, '**', '**')}
+                  >
+                    B 볼드체
+                  </button>
+
+                  <select
+                    className="form-input"
+                    style={{ display: 'inline-block', width: 'auto', marginLeft: '0.5rem', padding: '0.4rem 0.6rem', fontSize: '0.75rem', cursor: 'pointer' }}
+                    defaultValue=""
+                    onChange={(e) => {
+                      const size = e.target.value
+                      if (size) wrapSelection(articleContentRef, articleContent, setArticleContent, `<span style="font-size:${size}">`, '</span>')
+                      e.target.value = ''
+                    }}
+                  >
+                    <option value="" disabled>글자 크기</option>
+                    {FONT_SIZES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </select>
                 </div>
 
                 {pendingGroupUrls.length > 0 && (
@@ -667,8 +720,31 @@ export default function AdminDashboardClient({ initialPhotos, initialArticles })
                         </select>
                         <input type="date" className="form-input" style={{ flex: 1 }} value={editCreatedAt} onChange={(e) => setEditCreatedAt(e.target.value)} />
                       </div>
-                      <textarea className="form-textarea" value={editContent} onChange={(e) => setEditContent(e.target.value)} placeholder="본문" style={{ minHeight: '150px' }} />
-                      
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', fontWeight: 700 }}
+                          onClick={() => wrapSelection(editContentRef, editContent, setEditContent, '**', '**')}
+                        >
+                          B 볼드체
+                        </button>
+                        <select
+                          className="form-input"
+                          style={{ display: 'inline-block', width: 'auto', padding: '0.4rem 0.6rem', fontSize: '0.75rem', cursor: 'pointer' }}
+                          defaultValue=""
+                          onChange={(e) => {
+                            const size = e.target.value
+                            if (size) wrapSelection(editContentRef, editContent, setEditContent, `<span style="font-size:${size}">`, '</span>')
+                            e.target.value = ''
+                          }}
+                        >
+                          <option value="" disabled>글자 크기</option>
+                          {FONT_SIZES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                        </select>
+                      </div>
+                      <textarea ref={editContentRef} className="form-textarea" value={editContent} onChange={(e) => setEditContent(e.target.value)} placeholder="본문" style={{ minHeight: '150px' }} />
+
                       <p style={{ fontSize: '0.75rem', marginBottom: '-0.3rem', marginTop: '0.5rem', color: 'var(--ink-light)' }}>
                         첨부 사진 관리 (사진 클릭: 대표 지정 / ✕: 삭제)
                       </p>
