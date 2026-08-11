@@ -25,7 +25,7 @@ export default async function RootLayout({ children }) {
         <header className="global-header">
           <div className="header-container">
             <Link href="/" className="site-logo">
-              📌 <span className="site-logo-text">일상의 기록</span>
+              📌
             </Link>
             <nav className="site-nav">
               <Link href="/" className="nav-link">Gallery</Link>
