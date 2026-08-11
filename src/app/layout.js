@@ -1,14 +1,8 @@
 import Link from 'next/link'
-import { Inter } from 'next/font/google'
 import { getSession } from '@/lib/session'
 import AdminBanner from './AdminBanner'
+import 'pretendard/dist/web/static/pretendard.css'
 import './globals.css'
-
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--font-sans-en',
-})
 
 export const metadata = {
   title: '📌 — 일상의 순간들',
@@ -19,7 +13,7 @@ export default async function RootLayout({ children }) {
   const session = await getSession()
   const isAdmin = session?.isAdmin
   return (
-    <html lang="ko" className={inter.variable}>
+    <html lang="ko">
       <body className="antialiased">
         <AdminBanner isAdmin={isAdmin} />
         <header className="global-header">

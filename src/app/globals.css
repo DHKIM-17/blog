@@ -15,7 +15,7 @@
   --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.14);
   --radius: 0px;
   --radius-lg: 0px;
-  --font-sans: var(--font-sans-en), -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -141,7 +141,7 @@ a {
   padding: 0.75rem;
   background: none;
   border: none;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.85rem;
   cursor: pointer;
   color: var(--ink-lighter);
